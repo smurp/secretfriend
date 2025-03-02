@@ -83,7 +83,12 @@ Secret Friend offers multiple ways to interact:
 
 5. The script will send your prompt to the local LLM and speak the response.
 
-6. Press Ctrl+C to exit the program.
+6. After the response is spoken, the assistant will automatically listen for your next command
+   without requiring you to say the wake phrase again.
+
+7. To exit the conversation completely, say "that will do" (or your custom done phrase).
+
+8. Alternatively, press Ctrl+C to exit the program at any time.
 
 ### Command-Line Options
 
@@ -108,8 +113,11 @@ Secret Friend supports a variety of command-line options:
 # Set custom wake and end phrases
 ./secretfriend.py --hi "hey you" --go "off you go"
 
+# Set the conversation exit phrase
+./secretfriend.py --done "conversation over"
+
 # Combine options
-./secretfriend.py --hi "computer" --go "that's all" tell me a joke
+./secretfriend.py --hi "computer" --go "that's all" --done "goodbye" tell me a joke
 
 # Show help
 ./secretfriend.py --help
@@ -158,6 +166,7 @@ You can configure Secret Friend using environment variables or a `.env` file:
 - `VOSK_MODEL_PATH`: Path to your Vosk speech recognition model (default: vosk-model-small-en-us-0.15)
 - `HI_PHRASE`: The phrase to activate the assistant (default: "listen up")
 - `GO_PHRASE`: The phrase to end your command (default: "go for it")
+- `DONE_PHRASE`: The phrase to exit the conversation (default: "that will do")
 - `PRE_COMMAND`: The phrase that precedes special commands (default: "hocus pocus")
 - `POST_COMMAND`: The phrase that follows special commands (default: "abracadabra")
 - `COMMAND_TIMEOUT`: Maximum time in seconds to wait for a command (default: 30)

@@ -435,11 +435,13 @@ def voice_mode():
     go_phrase = os.getenv("GO_PHRASE", "go for it").lower()
     pre_command = os.getenv("PRE_COMMAND", "hocus pocus").lower()
     post_command = os.getenv("POST_COMMAND", "abracadabra").lower()
+    done_phrase = os.getenv("DONE_PHRASE", "that will do").lower()
     
     print("Secret Friend is active in voice mode.")
     print(f"Say '{hi_phrase}' to activate, then speak your question, and say '{go_phrase}' when done.")
     print(f"The wake phrase can be changed using the HI_PHRASE environment variable.")
     print(f"The end phrase can be changed using the GO_PHRASE environment variable.")
+    print(f"Say '{done_phrase}' at any time to exit the conversation.")
     print(f"Special commands: {pre_command} [command] {post_command}")
     print(f"  Example: {pre_command} list models {post_command}")
     print("Press Ctrl+C to exit.")
@@ -470,11 +472,25 @@ def voice_mode():
         sound_listener = SoundDeviceListener(model_path)
         
         try:
+            # Flag to track if we're in an active conversation
+            in_conversation = False
+            
             while True:
-                # Wait for wake word
-                if listen_for_wake_word(sound_listener):
-                    # Get command
+                # If not in a conversation, wait for wake word
+                if not in_conversation:
+                    if listen_for_wake_word(sound_listener):
+                        in_conversation = True
+                
+                # If in a conversation or wake word detected, get command
+                if in_conversation:
                     command = listen_for_command(sound_listener)
+                    
+                    # Check if the done phrase was said
+                    if done_phrase in command.lower():
+                        print(f"Done phrase '{done_phrase}' detected. Exiting conversation.")
+                        speak("Goodbye!")
+                        in_conversation = False
+                        continue
                     
                     if command:
                         # Check if it's a special command
@@ -488,6 +504,10 @@ def voice_mode():
                             response = send_to_llm(command)
                             print(f"Original response: {response}")
                             speak(response)
+                        
+                        # After speaking, we remain in conversation mode
+                        # No need to wait for the wake word again
+                        print(f"Ready for next command. Say '{go_phrase}' after speaking or '{done_phrase}' to exit.")
         except KeyboardInterrupt:
             print("\nGoodbye!")
         finally:
@@ -503,6 +523,7 @@ def main():
     current_go_phrase = os.getenv("GO_PHRASE", "go for it")
     current_pre_command = os.getenv("PRE_COMMAND", "hocus pocus")
     current_post_command = os.getenv("POST_COMMAND", "abracadabra")
+    current_done_phrase = os.getenv("DONE_PHRASE", "that will do")
 
     # Check for help flags before creating the parser
     if "-h" in sys.argv or "--help" in sys.argv:
@@ -522,10 +543,12 @@ def main():
         print("  --command COMMAND          Execute a specific command directly and exit")
         print("  --hi PHRASE                Set the wake phrase (HI_PHRASE)")
         print("  --go PHRASE                Set the end phrase (GO_PHRASE)")
+        print("  --done PHRASE              Set the conversation exit phrase (DONE_PHRASE)")
         print("  text...                    Text to send directly to the LLM")
         print("\nCurrent Settings:")
         print(f"  HI_PHRASE = '{current_hi_phrase}'")
         print(f"  GO_PHRASE = '{current_go_phrase}'")
+        print(f"  DONE_PHRASE = '{current_done_phrase}'")
         print(f"  PRE_COMMAND = '{current_pre_command}'")
         print(f"  POST_COMMAND = '{current_post_command}'")
         print("\nSpecial Commands:")
@@ -540,6 +563,7 @@ def main():
     parser.add_argument("--command", help="Execute a specific command directly and exit")
     parser.add_argument("--hi", help="Set the wake phrase (HI_PHRASE)")
     parser.add_argument("--go", help="Set the end phrase (GO_PHRASE)")
+    parser.add_argument("--done", help="Set the conversation exit phrase (DONE_PHRASE)")
     parser.add_argument("text", nargs="*", help="Text to send directly to the LLM")
     
     args = parser.parse_args()
@@ -551,6 +575,8 @@ def main():
         os.environ["HI_PHRASE"] = args.hi
     if args.go:
         os.environ["GO_PHRASE"] = args.go
+    if args.done:
+        os.environ["DONE_PHRASE"] = args.done
     
     # Handle direct command execution
     if args.command:
