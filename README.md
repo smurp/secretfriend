@@ -2,7 +2,7 @@
 
 ![SecretFriend Icon](img/secretfriend-icon.png)
 
-A versatile interface to interact with local LLMs through Ollama, with voice activation and text-to-speech feedback.
+A versatile, completely local, ambient voice chat for interacting with local LLMs through Ollama, with voice activation and text-to-speech feedback.
 
 ## Overview
 
