@@ -85,46 +85,33 @@ Secret Friend offers multiple ways to interact:
 
 6. Press Ctrl+C to exit the program.
 
-### Command-Line Interface Mode
+### Command-Line Options
 
-1. Run the script with the `--cli` flag:
-   ```bash
-   ./secretfriend.py --cli
-   ```
+Secret Friend supports a variety of command-line options:
 
-2. Type your question or prompt and press Enter.
-
-3. The script will send your prompt to the local LLM and speak the response.
-
-4. Type 'exit' to quit the program.
-
-### Direct Command Execution
-
-Run a command directly:
 ```bash
+# Start in voice mode (default)
+./secretfriend.py
+
+# Start in CLI mode
+./secretfriend.py --cli
+
+# Execute a command directly
 ./secretfriend.py --command "list models"
-```
 
-### Direct Query
-
-Send text directly to the LLM:
-```bash
+# Send text directly to the LLM
 ./secretfriend.py tell me a joke
-```
 
-### CLI Mode with Initial Query
-
-Start CLI mode with an initial query:
-```bash
+# Start CLI mode with an initial query
 ./secretfriend.py --cli tell me a joke
-```
 
-### Help
+# Set custom wake and end phrases
+./secretfriend.py --hi "hey you" --go "off you go"
 
-Display help information:
-```bash
-./secretfriend.py -h
-# or
+# Combine options
+./secretfriend.py --hi "computer" --go "that's all" tell me a joke
+
+# Show help
 ./secretfriend.py --help
 ```
 

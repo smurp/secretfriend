@@ -498,6 +498,12 @@ def voice_mode():
         cli_mode()
 
 def main():
+    # Get current settings for displaying in help
+    current_hi_phrase = os.getenv("HI_PHRASE", "listen up")
+    current_go_phrase = os.getenv("GO_PHRASE", "go for it")
+    current_pre_command = os.getenv("PRE_COMMAND", "hocus pocus")
+    current_post_command = os.getenv("POST_COMMAND", "abracadabra")
+
     # Check for help flags before creating the parser
     if "-h" in sys.argv or "--help" in sys.argv:
         # Custom help message
@@ -508,15 +514,23 @@ def main():
         print("  ./secretfriend.py --command 'list models'  # Execute command directly")
         print("  ./secretfriend.py tell me a joke     # Send text to LLM and exit")
         print("  ./secretfriend.py --cli tell me a joke  # Process query and stay in CLI mode")
+        print("  ./secretfriend.py --hi 'hey you' --go 'off you go'  # Set custom phrases")
         print("\nOptions:")
         print("  -h, --help                 Show this help message and exit")
         print("  --cli                      Run in command-line interface mode")
         print("  --model-path PATH          Path to Vosk speech recognition model")
         print("  --command COMMAND          Execute a specific command directly and exit")
+        print("  --hi PHRASE                Set the wake phrase (HI_PHRASE)")
+        print("  --go PHRASE                Set the end phrase (GO_PHRASE)")
         print("  text...                    Text to send directly to the LLM")
+        print("\nCurrent Settings:")
+        print(f"  HI_PHRASE = '{current_hi_phrase}'")
+        print(f"  GO_PHRASE = '{current_go_phrase}'")
+        print(f"  PRE_COMMAND = '{current_pre_command}'")
+        print(f"  POST_COMMAND = '{current_post_command}'")
         print("\nSpecial Commands:")
-        print(f"  {os.getenv('PRE_COMMAND', 'hocus pocus')} list models {os.getenv('POST_COMMAND', 'abracadabra')}")
-        print(f"  {os.getenv('PRE_COMMAND', 'hocus pocus')} exit {os.getenv('POST_COMMAND', 'abracadabra')}")
+        print(f"  {current_pre_command} list models {current_post_command}")
+        print(f"  {current_pre_command} exit {current_post_command}")
         return
 
     # Parse command line arguments
@@ -524,13 +538,19 @@ def main():
     parser.add_argument("--cli", action="store_true", help="Run in command-line interface mode")
     parser.add_argument("--model-path", help="Path to Vosk speech recognition model")
     parser.add_argument("--command", help="Execute a specific command directly and exit")
+    parser.add_argument("--hi", help="Set the wake phrase (HI_PHRASE)")
+    parser.add_argument("--go", help="Set the end phrase (GO_PHRASE)")
     parser.add_argument("text", nargs="*", help="Text to send directly to the LLM")
     
     args = parser.parse_args()
     
-    # Set Vosk model path if provided
+    # Set environment variables from command line arguments
     if args.model_path:
         os.environ["VOSK_MODEL_PATH"] = args.model_path
+    if args.hi:
+        os.environ["HI_PHRASE"] = args.hi
+    if args.go:
+        os.environ["GO_PHRASE"] = args.go
     
     # Handle direct command execution
     if args.command:
