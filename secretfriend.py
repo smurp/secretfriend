@@ -36,10 +36,14 @@ def clean_response(text):
     cleaned_text = re.sub(r'<[^>]+>', '', cleaned_text)
     return cleaned_text.strip()
 
-def speak(text):
-    """Use macOS 'say' command to speak text aloud"""
+def speak(text, sound_listener=None):
+    """Use macOS 'say' command to speak text aloud and set the spoken text for echo detection"""
     cleaned_text = clean_response(text)
     print(f"Speaking: {cleaned_text}")
+    
+    # Record what is being spoken for echo detection
+    if sound_listener:
+        sound_listener.set_last_spoken(cleaned_text)
     
     # Force text to be non-empty and properly escaped
     if cleaned_text.strip():
@@ -163,6 +167,7 @@ class SoundDeviceListener:
         self.audio_queue = queue.Queue()
         self.stream = None
         self.listening_thread = None
+        self.last_spoken_text = None  # Track the last text spoken by the system
         
         # Debug information about available devices
         print("Available audio devices:")
@@ -184,6 +189,13 @@ class SoundDeviceListener:
             
         self.is_listening = True
         try:
+            # Clear the audio queue before starting
+            while not self.audio_queue.empty():
+                try:
+                    self.audio_queue.get(False)
+                except queue.Empty:
+                    break
+                
             self.stream = sd.InputStream(
                 callback=self._audio_callback,
                 channels=1,
@@ -211,6 +223,53 @@ class SoundDeviceListener:
             self.stream = None
             
         print("Audio stream stopped")
+        
+    def set_last_spoken(self, text):
+        """Set the last text spoken by the system"""
+        # Convert to lowercase and remove punctuation for easier comparison
+        if text:
+            self.last_spoken_text = text.lower().strip().replace('.', '').replace('?', '').replace('!', '')
+            print(f"Set last spoken text: '{self.last_spoken_text}'")
+        
+    def should_ignore_text(self, text):
+        """Check if recognized text matches what the system just said"""
+        if not self.last_spoken_text or not text:
+            return False
+            
+        # Clean up the recognized text
+        clean_text = text.lower().strip().replace('.', '').replace('?', '').replace('!', '')
+        
+        # Check if the recognized text contains the last spoken text
+        similarity = self._text_similarity(clean_text, self.last_spoken_text)
+        if similarity > 0.7:  # If 70% similar or more, likely hearing the system's speech
+            print(f"Ignoring echo detection (similarity: {similarity:.2f}): '{clean_text}'")
+            return True
+            
+        return False
+        
+    def _text_similarity(self, text1, text2):
+        """Calculate similarity between two texts"""
+        # Simple similarity check - percent of shorter text in longer text
+        if not text1 or not text2:
+            return 0
+            
+        text1, text2 = text1.lower(), text2.lower()
+        shorter = text1 if len(text1) < len(text2) else text2
+        longer = text2 if len(text1) < len(text2) else text1
+        
+        # Check if shorter text is contained in longer text
+        if shorter in longer:
+            return 1.0
+            
+        # Check for word overlap
+        words1 = set(text1.split())
+        words2 = set(text2.split())
+        
+        if not words1 or not words2:
+            return 0
+            
+        common_words = words1.intersection(words2)
+        return len(common_words) / min(len(words1), len(words2))
     
     def listen_for_phrase(self, timeout=None):
         """Listen for a complete phrase with timeout"""
@@ -234,6 +293,13 @@ class SoundDeviceListener:
                         if result.get("text", "").strip():
                             text = result.get("text", "").strip()
                             print(f"Recognized: {text}")
+                            
+                            # Check if this is likely an echo of what the system just said
+                            if self.should_ignore_text(text):
+                                print("Ignoring system echo, continuing to listen...")
+                                text = ""  # Reset text so we keep listening
+                                continue
+                            
                             return text
                     else:
                         # Check partial results too
@@ -241,6 +307,10 @@ class SoundDeviceListener:
                         partial_text = partial.get("partial", "").strip()
                         if partial_text:
                             print(f"Partial: {partial_text}")
+                            
+                            # Check partial results for echo too
+                            if self.should_ignore_text(partial_text):
+                                print("Ignoring system echo in partial result...")
                 except queue.Empty:
                     pass
                             
@@ -252,7 +322,12 @@ class SoundDeviceListener:
             partial_text = partial.get("partial", "").strip()
             if partial_text:
                 print(f"Final partial: {partial_text}")
-                return partial_text
+                
+                # Check if final partial is an echo
+                if not self.should_ignore_text(partial_text):
+                    return partial_text
+                else:
+                    print("Ignoring system echo in final partial result")
                 
             return ""
         finally:
@@ -327,9 +402,6 @@ def listen_for_command(sound_listener, end_command=None):
         end_command = os.getenv("GO_PHRASE", "go for it").lower()
         
     print(f"Listening for your command. Say '{end_command}' when done.")
-    
-    # Respond with "yes" after wake word is detected
-    speak("yes")
     
     full_command = ""
     start_time = time.time()
@@ -483,12 +555,16 @@ def voice_mode():
                 
                 # If in a conversation or wake word detected, get command
                 if in_conversation:
+                    # Acknowledge the wake word or ready for next command
+                    speak("yes", sound_listener)
+                    
+                    # Get command
                     command = listen_for_command(sound_listener)
                     
                     # Check if the done phrase was said
                     if done_phrase in command.lower():
                         print(f"Done phrase '{done_phrase}' detected. Exiting conversation.")
-                        speak("Goodbye!")
+                        speak("Goodbye!", sound_listener)
                         in_conversation = False
                         continue
                     
@@ -497,13 +573,13 @@ def voice_mode():
                         special_response = process_command(command)
                         if special_response:
                             print(special_response)
-                            speak(special_response)
+                            speak(special_response, sound_listener)
                         else:
                             # Regular LLM processing
                             print(f"Sending to LLM: '{command}'")
                             response = send_to_llm(command)
                             print(f"Original response: {response}")
-                            speak(response)
+                            speak(response, sound_listener)
                         
                         # After speaking, we remain in conversation mode
                         # No need to wait for the wake word again
