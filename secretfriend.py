@@ -372,6 +372,27 @@ def listen_for_command(sound_listener, end_command=None):
     
     return full_command.strip()
 
+def cli_mode_with_initial_text(initial_text):
+    """Run CLI mode with an initial query and continue in interactive mode"""
+    print("Secret Friend is active in CLI mode with initial query.")
+    
+    # Process the initial text
+    if initial_text:
+        # Check if it's a special command
+        special_response = process_command(initial_text)
+        if special_response:
+            print(special_response)
+            speak(special_response)
+        else:
+            # Regular LLM processing
+            print(f"Sending to LLM: '{initial_text}'")
+            response = send_to_llm(initial_text)
+            print(f"Original response: {response}")
+            speak(response)
+    
+    # Then continue with normal CLI mode
+    cli_mode()
+
 def cli_mode():
     """Run the application in command-line interface mode"""
     print("Secret Friend is active in CLI mode.")
@@ -481,15 +502,47 @@ def main():
     parser = argparse.ArgumentParser(description="Secret Friend - Voice or CLI interaction with local LLMs")
     parser.add_argument("--cli", action="store_true", help="Run in command-line interface mode")
     parser.add_argument("--model-path", help="Path to Vosk speech recognition model")
+    parser.add_argument("--command", help="Execute a specific command directly and exit")
+    parser.add_argument("text", nargs="*", help="Text to send directly to the LLM")
     args = parser.parse_args()
     
     # Set Vosk model path if provided
     if args.model_path:
         os.environ["VOSK_MODEL_PATH"] = args.model_path
     
-    # Always use CLI mode if voice mode is not available
+    # Handle direct command execution
+    if args.command:
+        print(f"Executing command: {args.command}")
+        if args.command == "list models":
+            models = list_models()
+            if models:
+                print(f"Available models: {', '.join(models)}")
+            else:
+                print("No models found. Make sure Ollama is running and you have models installed.")
+        # Add more direct commands as needed
+        # elif args.command == "another_command":
+        #     do_something()
+        else:
+            print(f"Unknown command: {args.command}")
+        return
+    
+    # Handle direct LLM query
+    if args.text and not args.cli:
+        query = " ".join(args.text)
+        print(f"Sending to LLM: '{query}'")
+        response = send_to_llm(query)
+        print(f"Response: {response}")
+        speak(response)
+        return
+    
+    # Normal operation modes
     if args.cli or not VOICE_MODE_AVAILABLE:
-        cli_mode()
+        if args.text:
+            # CLI mode with initial query
+            cli_mode_with_initial_text(" ".join(args.text))
+        else:
+            # Standard CLI mode
+            cli_mode()
     else:
         try:
             voice_mode()
