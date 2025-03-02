@@ -81,11 +81,11 @@ Secret Friend is a Python script that allows you to have a voice conversation wi
    ./secretfriend.py --model-path /path/to/your/vosk-model
    ```
 
-2. Say "howdy" to activate the assistant (or your custom wake phrase).
+2. Say "howdy partner" to activate the assistant (or your custom wake phrase).
 
 3. Secret Friend will respond with "yes" and listen for your command.
 
-4. Speak your question or prompt, then say "over" when you're done.
+4. Speak your question or prompt, then say "over and out" when you're done.
    (Alternatively, a 5-second pause will also end your command)
 
 5. The script will send your prompt to the local LLM and speak the response.
@@ -108,7 +108,7 @@ Secret Friend is a Python script that allows you to have a voice conversation wi
 ## Features
 
 - Uses locally running LLMs via Ollama
-- Fully offline voice activation with configurable wake phrase (default: "howdy")
+- Fully offline voice activation with configurable wake phrase (default: "howdy partner")
 - Offline speech recognition for hands-free operation using Vosk
 - Text-to-speech output using macOS's built-in `say` command
 - Automatically detects available models
@@ -121,8 +121,8 @@ You can configure Secret Friend using environment variables or a `.env` file:
 
 - `MODEL`: Specify which Ollama model to use (default: gemma2:latest)
 - `VOSK_MODEL_PATH`: Path to your Vosk speech recognition model (default: vosk-model-small-en-us-0.15)
-- `WAKE_PHRASE`: The phrase to activate the assistant (default: "howdy")
-- `END_COMMAND`: The word to end your command (default: "over")
+- `HI_PHRASE`: The phrase to activate the assistant (default: "howdy partner")
+- `GO_PHRASE`: The phrase to end your command (default: "over and out")
 - `COMMAND_TIMEOUT`: Maximum time in seconds to wait for a command (default: 30)
 - `SILENCE_TIMEOUT`: Seconds of silence before automatically ending command (default: 5)
 
@@ -136,13 +136,13 @@ MODEL=deepseek-r1:32b ./secretfriend.py
 VOSK_MODEL_PATH=/path/to/vosk-model-large ./secretfriend.py
 
 # Use a custom wake phrase
-WAKE_PHRASE="computer" ./secretfriend.py
+HI_PHRASE="computer" ./secretfriend.py
 
 # Or create a .env file with the configuration
 echo "MODEL=deepseek-r1:32b" > .env
 echo "VOSK_MODEL_PATH=/path/to/vosk-model" >> .env
-echo "WAKE_PHRASE=jarvis" >> .env
-echo "END_COMMAND=done" >> .env
+echo "HI_PHRASE=jarvis" >> .env
+echo "GO_PHRASE=done" >> .env
 ./secretfriend.py
 ```
 

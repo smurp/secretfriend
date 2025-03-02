@@ -222,7 +222,7 @@ class SoundDeviceListener:
 def listen_for_wake_word(sound_listener, wake_phrase=None):
     """Listen continuously for the wake word using Vosk with improved detection"""
     if wake_phrase is None:
-        wake_phrase = os.getenv("WAKE_PHRASE", "howdy").lower()
+        wake_phrase = os.getenv("HI_PHRASE", "howdy partner").lower()
         
     print(f"Listening for wake phrase: '{wake_phrase}'...")
     
@@ -283,7 +283,7 @@ def listen_for_wake_word(sound_listener, wake_phrase=None):
 def listen_for_command(sound_listener, end_command=None):
     """Listen for a command until the end command is heard using Vosk"""
     if end_command is None:
-        end_command = os.getenv("END_COMMAND", "over").lower()
+        end_command = os.getenv("GO_PHRASE", "over and out").lower()
         
     print(f"Listening for your command. Say '{end_command}' when done.")
     
@@ -360,11 +360,13 @@ def cli_mode():
 def voice_mode():
     """Run the application in voice-activated mode"""
     # Get wake phrase from environment
-    wake_phrase = os.getenv("WAKE_PHRASE", "howdy").lower()
+    hi_phrase = os.getenv("HI_PHRASE", "howdy partner").lower()
+    go_phrase = os.getenv("GO_PHRASE", "over and out").lower()
     
     print("Secret Friend is active in voice mode.")
-    print(f"Say '{wake_phrase}' to activate, then speak your question, and say 'over' when done.")
-    print(f"The wake phrase can be changed using the WAKE_PHRASE environment variable.")
+    print(f"Say '{hi_phrase}' to activate, then speak your question, and say '{go_phrase}' when done.")
+    print(f"The wake phrase can be changed using the HI_PHRASE environment variable.")
+    print(f"The end phrase can be changed using the GO_PHRASE environment variable.")
     print("Press Ctrl+C to exit.")
     
     # List available models at startup
