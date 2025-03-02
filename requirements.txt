@@ -1,5 +1,8 @@
+# Core requirements
 requests>=2.25.0
 python-dotenv>=0.19.0
+
+# Voice recognition (optional)
 vosk>=0.3.44
 sounddevice>=0.4.5
 numpy>=1.20.0
