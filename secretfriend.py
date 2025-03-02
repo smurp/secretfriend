@@ -4,12 +4,16 @@ import json
 import os
 import subprocess
 import re
+import sys
 import argparse
 import time
 import queue
 import threading
 import numpy as np
 from dotenv import load_dotenv
+
+# Load environment variables from .env file if present
+load_dotenv(dotenv_path='.env', override=True)
 
 # Set up a flag to track if voice mode is available
 VOICE_MODE_AVAILABLE = False
@@ -23,9 +27,6 @@ except ImportError as e:
     print(f"Warning: Voice recognition modules couldn't be imported: {e}")
     print("Voice mode will not be available. Using CLI mode only.")
     VOICE_MODE_AVAILABLE = False
-
-# Load environment variables from .env file if present
-load_dotenv(dotenv_path='.env', override=True)
 
 def clean_response(text):
     """Remove any <think> tags and their contents from the response"""
@@ -112,6 +113,46 @@ def send_to_llm(request):
     except requests.exceptions.RequestException as e:
         print(f"Error communicating with Ollama API: {e}")
         return "I'm sorry, I had trouble connecting to the local LLM service. Make sure Ollama is running and you have models installed."
+
+def process_command(command):
+    """Process a command and check if it's a special system command"""
+    # Get the pre and post command phrases from environment
+    pre_command = os.getenv("PRE_COMMAND", "hocus pocus").lower()
+    post_command = os.getenv("POST_COMMAND", "abracadabra").lower()
+    
+    # Check if the command starts with pre_command and ends with post_command
+    command = command.lower().strip()
+    
+    if pre_command in command and post_command in command:
+        # Extract the actual command between pre and post commands
+        start_idx = command.find(pre_command) + len(pre_command)
+        end_idx = command.find(post_command, start_idx)
+        
+        if end_idx > start_idx:
+            actual_command = command[start_idx:end_idx].strip()
+            print(f"Special command detected: '{actual_command}'")
+            
+            # Process known special commands
+            if actual_command == "list models":
+                models = list_models()
+                if models:
+                    return f"Available models: {', '.join(models)}"
+                else:
+                    return "No Ollama models found. Make sure Ollama is running with models installed."
+            
+            elif actual_command == "exit":
+                print("Exit command received. Goodbye!")
+                sys.exit(0)
+                
+            # Add more special commands here as needed
+            # elif actual_command == "some other command":
+            #     return do_something()
+            
+            else:
+                return f"Unknown command: {actual_command}. Try 'list models' or 'exit'."
+                
+    # Not a special command, return None to process normally with LLM
+    return None
 
 class SoundDeviceListener:
     """Class for managing Vosk-based speech recognition with sounddevice"""
@@ -218,11 +259,11 @@ class SoundDeviceListener:
             # If we weren't listening before, stop listening
             if was_not_listening:
                 self.stop_listening()
-    
+
 def listen_for_wake_word(sound_listener, wake_phrase=None):
     """Listen continuously for the wake word using Vosk with improved detection"""
     if wake_phrase is None:
-        wake_phrase = os.getenv("HI_PHRASE", "howdy partner").lower()
+        wake_phrase = os.getenv("HI_PHRASE", "listen up").lower()
         
     print(f"Listening for wake phrase: '{wake_phrase}'...")
     
@@ -283,7 +324,7 @@ def listen_for_wake_word(sound_listener, wake_phrase=None):
 def listen_for_command(sound_listener, end_command=None):
     """Listen for a command until the end command is heard using Vosk"""
     if end_command is None:
-        end_command = os.getenv("GO_PHRASE", "over and out").lower()
+        end_command = os.getenv("GO_PHRASE", "go for it").lower()
         
     print(f"Listening for your command. Say '{end_command}' when done.")
     
@@ -335,6 +376,8 @@ def cli_mode():
     """Run the application in command-line interface mode"""
     print("Secret Friend is active in CLI mode.")
     print("Type your questions and press Enter. I'll speak the responses.")
+    print("Special commands: Surround system commands with PRE_COMMAND and POST_COMMAND")
+    print(f"  Example: {os.getenv('PRE_COMMAND', 'hocus pocus')} list models {os.getenv('POST_COMMAND', 'abracadabra')}")
     print("Type 'exit' to quit.")
     
     # List available models at startup
@@ -352,21 +395,32 @@ def cli_mode():
             break
         
         if user_input:
-            print(f"Sending to LLM: '{user_input}'")
-            response = send_to_llm(user_input)
-            print(f"Original response: {response}")
-            speak(response)
+            # Check if it's a special command
+            special_response = process_command(user_input)
+            if special_response:
+                print(special_response)
+                speak(special_response)
+            else:
+                # Regular LLM processing
+                print(f"Sending to LLM: '{user_input}'")
+                response = send_to_llm(user_input)
+                print(f"Original response: {response}")
+                speak(response)
 
 def voice_mode():
     """Run the application in voice-activated mode"""
     # Get wake phrase from environment
-    hi_phrase = os.getenv("HI_PHRASE", "howdy partner").lower()
-    go_phrase = os.getenv("GO_PHRASE", "over and out").lower()
+    hi_phrase = os.getenv("HI_PHRASE", "listen up").lower()
+    go_phrase = os.getenv("GO_PHRASE", "go for it").lower()
+    pre_command = os.getenv("PRE_COMMAND", "hocus pocus").lower()
+    post_command = os.getenv("POST_COMMAND", "abracadabra").lower()
     
     print("Secret Friend is active in voice mode.")
     print(f"Say '{hi_phrase}' to activate, then speak your question, and say '{go_phrase}' when done.")
     print(f"The wake phrase can be changed using the HI_PHRASE environment variable.")
     print(f"The end phrase can be changed using the GO_PHRASE environment variable.")
+    print(f"Special commands: {pre_command} [command] {post_command}")
+    print(f"  Example: {pre_command} list models {post_command}")
     print("Press Ctrl+C to exit.")
     
     # List available models at startup
@@ -402,10 +456,17 @@ def voice_mode():
                     command = listen_for_command(sound_listener)
                     
                     if command:
-                        print(f"Sending to LLM: '{command}'")
-                        response = send_to_llm(command)
-                        print(f"Original response: {response}")
-                        speak(response)
+                        # Check if it's a special command
+                        special_response = process_command(command)
+                        if special_response:
+                            print(special_response)
+                            speak(special_response)
+                        else:
+                            # Regular LLM processing
+                            print(f"Sending to LLM: '{command}'")
+                            response = send_to_llm(command)
+                            print(f"Original response: {response}")
+                            speak(response)
         except KeyboardInterrupt:
             print("\nGoodbye!")
         finally:

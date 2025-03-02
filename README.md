@@ -1,4 +1,26 @@
-# Secret Friend
+## Special Commands
+
+Secret Friend supports special system commands that bypass the LLM. To use these, wrap your command with the PRE_COMMAND and POST_COMMAND phrases:
+
+```
+[PRE_COMMAND] [command] [POST_COMMAND]
+```
+
+For example, with default settings:
+```
+hocus pocus list models abracadabra
+```
+
+Or with custom settings from .env.example:
+```
+oh great genie list models let it be done
+```
+
+Available special commands:
+- `list models` - Shows available Ollama models
+- `exit` - Exits the application
+
+You can add more special commands by modifying the `process_command` function in the script.# Secret Friend
 
 A simple interface to interact with local LLMs through Ollama, with voice activation and text-to-speech feedback.
 
@@ -111,6 +133,7 @@ Secret Friend is a Python script that allows you to have a voice conversation wi
 - Fully offline voice activation with configurable wake phrase (default: "howdy partner")
 - Offline speech recognition for hands-free operation using Vosk
 - Text-to-speech output using macOS's built-in `say` command
+- Special system commands using the pre/post command pattern
 - Automatically detects available models
 - Cleans LLM responses for better speech output
 - Simple command-line interface option
@@ -123,6 +146,8 @@ You can configure Secret Friend using environment variables or a `.env` file:
 - `VOSK_MODEL_PATH`: Path to your Vosk speech recognition model (default: vosk-model-small-en-us-0.15)
 - `HI_PHRASE`: The phrase to activate the assistant (default: "howdy partner")
 - `GO_PHRASE`: The phrase to end your command (default: "over and out")
+- `PRE_COMMAND`: The phrase that precedes special commands (default: "hocus pocus")
+- `POST_COMMAND`: The phrase that follows special commands (default: "abracadabra")
 - `COMMAND_TIMEOUT`: Maximum time in seconds to wait for a command (default: 30)
 - `SILENCE_TIMEOUT`: Seconds of silence before automatically ending command (default: 5)
 
@@ -135,14 +160,16 @@ MODEL=deepseek-r1:32b ./secretfriend.py
 # Run with a custom Vosk model path
 VOSK_MODEL_PATH=/path/to/vosk-model-large ./secretfriend.py
 
-# Use a custom wake phrase
-HI_PHRASE="computer" ./secretfriend.py
+# Use custom phrases
+HI_PHRASE="computer" GO_PHRASE="done" PRE_COMMAND="execute" POST_COMMAND="now" ./secretfriend.py
 
 # Or create a .env file with the configuration
 echo "MODEL=deepseek-r1:32b" > .env
 echo "VOSK_MODEL_PATH=/path/to/vosk-model" >> .env
 echo "HI_PHRASE=jarvis" >> .env
 echo "GO_PHRASE=done" >> .env
+echo "PRE_COMMAND=run command" >> .env
+echo "POST_COMMAND=end command" >> .env
 ./secretfriend.py
 ```
 
