@@ -4,6 +4,28 @@ import json
 import os
 import subprocess
 import re
+import argparse
+import time
+import queue
+import threading
+import numpy as np
+from dotenv import load_dotenv
+
+# Set up a flag to track if voice mode is available
+VOICE_MODE_AVAILABLE = False
+
+# Try to import voice recognition modules
+try:
+    import vosk
+    import sounddevice as sd
+    VOICE_MODE_AVAILABLE = True
+except ImportError as e:
+    print(f"Warning: Voice recognition modules couldn't be imported: {e}")
+    print("Voice mode will not be available. Using CLI mode only.")
+    VOICE_MODE_AVAILABLE = False
+
+# Load environment variables from .env file if present
+load_dotenv(dotenv_path='.env', override=True)
 
 def clean_response(text):
     """Remove any <think> tags and their contents from the response"""
@@ -36,8 +58,6 @@ def speak(text):
     else:
         print("Nothing to speak (empty response)")
 
-
-
 def list_models():
     """List available models from Ollama"""
     try:
@@ -53,8 +73,8 @@ def send_to_llm(request):
     """Send the request to local Ollama instance and get a response"""
     models = list_models()
     
-    # Use gemma2:latest as the default model
-    model = "gemma2:latest"
+    # Get model from environment variables or use default
+    model = os.getenv("MODEL", "gemma2:latest")
     print(f"Using model: {model}")
     
     # Add system prompt for better voice responses
@@ -93,8 +113,227 @@ def send_to_llm(request):
         print(f"Error communicating with Ollama API: {e}")
         return "I'm sorry, I had trouble connecting to the local LLM service. Make sure Ollama is running and you have models installed."
 
-def main():
-    print("Secret Friend is active.")
+class SoundDeviceListener:
+    """Class for managing Vosk-based speech recognition with sounddevice"""
+    def __init__(self, model_path):
+        self.model = vosk.Model(model_path)
+        self.sample_rate = 16000
+        self.is_listening = False
+        self.audio_queue = queue.Queue()
+        self.stream = None
+        self.listening_thread = None
+        
+        # Debug information about available devices
+        print("Available audio devices:")
+        print(sd.query_devices())
+        print(f"Default input device: {sd.default.device[0]}")
+        
+    def _audio_callback(self, indata, frames, time, status):
+        """Callback for audio stream - add data to queue"""
+        if status:
+            print(f"Audio status: {status}")
+        # Convert float to int16
+        audio_data = (indata * 32767).astype(np.int16).tobytes()
+        self.audio_queue.put(audio_data)
+        
+    def start_listening(self):
+        """Start the audio stream"""
+        if self.is_listening:
+            return
+            
+        self.is_listening = True
+        try:
+            self.stream = sd.InputStream(
+                callback=self._audio_callback,
+                channels=1,
+                samplerate=self.sample_rate,
+                blocksize=8000,
+                dtype='float32'
+            )
+            self.stream.start()
+            print("Audio stream started")
+        except Exception as e:
+            print(f"Error starting audio stream: {e}")
+            self.is_listening = False
+            raise
+        
+    def stop_listening(self):
+        """Stop the audio stream"""
+        if not self.is_listening:
+            return
+            
+        self.is_listening = False
+        
+        if self.stream:
+            self.stream.stop()
+            self.stream.close()
+            self.stream = None
+            
+        print("Audio stream stopped")
+    
+    def listen_for_phrase(self, timeout=None):
+        """Listen for a complete phrase with timeout"""
+        rec = vosk.KaldiRecognizer(self.model, self.sample_rate)
+        rec.SetWords(True)  # Enable word timestamps
+        
+        # Start listening if not already
+        was_not_listening = not self.is_listening
+        if was_not_listening:
+            self.start_listening()
+            
+        text = ""
+        start_time = time.time()
+        
+        try:
+            while timeout is None or (time.time() - start_time) < timeout:
+                try:
+                    data = self.audio_queue.get(block=True, timeout=0.5)
+                    if rec.AcceptWaveform(data):
+                        result = json.loads(rec.Result())
+                        if result.get("text", "").strip():
+                            text = result.get("text", "").strip()
+                            print(f"Recognized: {text}")
+                            return text
+                    else:
+                        # Check partial results too
+                        partial = json.loads(rec.PartialResult())
+                        partial_text = partial.get("partial", "").strip()
+                        if partial_text:
+                            print(f"Partial: {partial_text}")
+                except queue.Empty:
+                    pass
+                            
+            # If we reach here, we've timed out
+            print("Recognition timed out")
+            
+            # Check for any final partial results before giving up
+            partial = json.loads(rec.PartialResult())
+            partial_text = partial.get("partial", "").strip()
+            if partial_text:
+                print(f"Final partial: {partial_text}")
+                return partial_text
+                
+            return ""
+        finally:
+            # If we weren't listening before, stop listening
+            if was_not_listening:
+                self.stop_listening()
+    
+def listen_for_wake_word(sound_listener, wake_phrase=None):
+    """Listen continuously for the wake word using Vosk with improved detection"""
+    if wake_phrase is None:
+        wake_phrase = os.getenv("WAKE_PHRASE", "howdy").lower()
+        
+    print(f"Listening for wake phrase: '{wake_phrase}'...")
+    
+    # Generate alternative wake word forms
+    wake_words = [wake_phrase]
+    
+    # Split main wake phrase into words and add variations
+    words = wake_phrase.split()
+    if len(words) > 1:
+        # Add partial matches (first word, last word, etc.)
+        wake_words.append(words[0])
+        wake_words.append(words[-1])
+        if len(words) > 2:
+            wake_words.append(' '.join(words[:2]))
+            wake_words.append(' '.join(words[-2:]))
+            
+    print(f"Will listen for these variations: {wake_words}")
+    
+    # Start the listener if not already listening
+    sound_listener.start_listening()
+    
+    # Create partial recognizer to handle partial results
+    rec = vosk.KaldiRecognizer(sound_listener.model, sound_listener.sample_rate)
+    rec.SetWords(True)  # Enable word timestamps
+    
+    while True:
+        try:
+            data = sound_listener.audio_queue.get(block=True, timeout=0.5)
+            
+            # Check for partial recognition results
+            if rec.AcceptWaveform(data):
+                # Full result
+                result = json.loads(rec.Result())
+                text = result.get("text", "").lower().strip()
+                print(f"Heard: {text}")
+                
+                # Check if any wake word variant is in the text
+                if any(word in text for word in wake_words):
+                    print("Wake word detected in full result!")
+                    return True
+            else:
+                # Partial result
+                partial = json.loads(rec.PartialResult())
+                partial_text = partial.get("partial", "").lower().strip()
+                
+                if partial_text:
+                    print(f"Partial: {partial_text}")
+                    
+                    # Check if any wake word variant is in the partial text
+                    if any(word in partial_text for word in wake_words):
+                        print("Wake word detected in partial result!")
+                        # Consume the current buffer before returning
+                        rec.Result()
+                        return True
+        except queue.Empty:
+            pass
+
+def listen_for_command(sound_listener, end_command=None):
+    """Listen for a command until the end command is heard using Vosk"""
+    if end_command is None:
+        end_command = os.getenv("END_COMMAND", "over").lower()
+        
+    print(f"Listening for your command. Say '{end_command}' when done.")
+    
+    # Respond with "yes" after wake word is detected
+    speak("yes")
+    
+    full_command = ""
+    start_time = time.time()
+    timeout = int(os.getenv("COMMAND_TIMEOUT", "30"))  # timeout in seconds, configurable
+    last_activity = time.time()
+    silence_timeout = int(os.getenv("SILENCE_TIMEOUT", "5"))  # silence timeout in seconds, configurable
+    
+    # Start the listener if not already listening
+    sound_listener.start_listening()
+    
+    try:
+        while True:
+            # Check for overall timeout
+            if time.time() - start_time > timeout:
+                print(f"Overall listening timeout reached ({timeout}s).")
+                if not full_command:
+                    return "Sorry, I didn't hear your command."
+                break
+                
+            # Check for silence timeout
+            if time.time() - last_activity > silence_timeout and full_command:
+                print(f"Silence detected for {silence_timeout} seconds, finishing command.")
+                break
+            
+            text = sound_listener.listen_for_phrase(timeout=1)
+            if text:
+                print(f"Heard: {text}")
+                last_activity = time.time()
+                
+                if end_command in text.lower():
+                    # Remove the end command from the final command
+                    parts = text.lower().split(end_command, 1)
+                    full_command += parts[0] + " "
+                    break
+                else:
+                    full_command += text + " "
+    finally:
+        # Don't stop global listening here - we'll continue listening for wake word
+        pass
+    
+    return full_command.strip()
+
+def cli_mode():
+    """Run the application in command-line interface mode"""
+    print("Secret Friend is active in CLI mode.")
     print("Type your questions and press Enter. I'll speak the responses.")
     print("Type 'exit' to quit.")
     
@@ -117,6 +356,84 @@ def main():
             response = send_to_llm(user_input)
             print(f"Original response: {response}")
             speak(response)
+
+def voice_mode():
+    """Run the application in voice-activated mode"""
+    # Get wake phrase from environment
+    wake_phrase = os.getenv("WAKE_PHRASE", "howdy").lower()
+    
+    print("Secret Friend is active in voice mode.")
+    print(f"Say '{wake_phrase}' to activate, then speak your question, and say 'over' when done.")
+    print(f"The wake phrase can be changed using the WAKE_PHRASE environment variable.")
+    print("Press Ctrl+C to exit.")
+    
+    # List available models at startup
+    models = list_models()
+    if models:
+        print(f"Available models: {models}")
+    else:
+        print("No models found. Make sure Ollama is running and you have models installed.")
+    
+    # Get model path from environment or use default
+    model_path = os.getenv("VOSK_MODEL_PATH", "vosk-model-small-en-us-0.15")
+    
+    # Check if the model exists
+    if not os.path.exists(model_path):
+        print(f"Vosk model not found at {model_path}")
+        print("Please download a model from https://alphacephei.com/vosk/models")
+        print("Example: wget https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip")
+        print("         unzip vosk-model-small-en-us-0.15.zip")
+        print("Or set VOSK_MODEL_PATH to point to your model directory")
+        print("Falling back to CLI mode...")
+        cli_mode()
+        return
+    
+    # Initialize the sound device listener
+    try:
+        sound_listener = SoundDeviceListener(model_path)
+        
+        try:
+            while True:
+                # Wait for wake word
+                if listen_for_wake_word(sound_listener):
+                    # Get command
+                    command = listen_for_command(sound_listener)
+                    
+                    if command:
+                        print(f"Sending to LLM: '{command}'")
+                        response = send_to_llm(command)
+                        print(f"Original response: {response}")
+                        speak(response)
+        except KeyboardInterrupt:
+            print("\nGoodbye!")
+        finally:
+            sound_listener.stop_listening()
+    except Exception as e:
+        print(f"Error initializing voice recognition: {e}")
+        print("Falling back to CLI mode...")
+        cli_mode()
+
+def main():
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description="Secret Friend - Voice or CLI interaction with local LLMs")
+    parser.add_argument("--cli", action="store_true", help="Run in command-line interface mode")
+    parser.add_argument("--model-path", help="Path to Vosk speech recognition model")
+    args = parser.parse_args()
+    
+    # Set Vosk model path if provided
+    if args.model_path:
+        os.environ["VOSK_MODEL_PATH"] = args.model_path
+    
+    # Always use CLI mode if voice mode is not available
+    if args.cli or not VOICE_MODE_AVAILABLE:
+        cli_mode()
+    else:
+        try:
+            voice_mode()
+        except Exception as e:
+            print(f"Error initializing voice mode: {e}")
+            print("Falling back to CLI mode...")
+            cli_mode()
 
 if __name__ == "__main__":
     main()
