@@ -498,12 +498,34 @@ def voice_mode():
         cli_mode()
 
 def main():
+    # Check for help flags before creating the parser
+    if "-h" in sys.argv or "--help" in sys.argv:
+        # Custom help message
+        print("Secret Friend - Voice or CLI interaction with local LLMs")
+        print("\nUsage examples:")
+        print("  ./secretfriend.py                    # Start in voice mode")
+        print("  ./secretfriend.py --cli              # Start in CLI mode")
+        print("  ./secretfriend.py --command 'list models'  # Execute command directly")
+        print("  ./secretfriend.py tell me a joke     # Send text to LLM and exit")
+        print("  ./secretfriend.py --cli tell me a joke  # Process query and stay in CLI mode")
+        print("\nOptions:")
+        print("  -h, --help                 Show this help message and exit")
+        print("  --cli                      Run in command-line interface mode")
+        print("  --model-path PATH          Path to Vosk speech recognition model")
+        print("  --command COMMAND          Execute a specific command directly and exit")
+        print("  text...                    Text to send directly to the LLM")
+        print("\nSpecial Commands:")
+        print(f"  {os.getenv('PRE_COMMAND', 'hocus pocus')} list models {os.getenv('POST_COMMAND', 'abracadabra')}")
+        print(f"  {os.getenv('PRE_COMMAND', 'hocus pocus')} exit {os.getenv('POST_COMMAND', 'abracadabra')}")
+        return
+
     # Parse command line arguments
-    parser = argparse.ArgumentParser(description="Secret Friend - Voice or CLI interaction with local LLMs")
+    parser = argparse.ArgumentParser(description="Secret Friend - Voice or CLI interaction with local LLMs", add_help=False)
     parser.add_argument("--cli", action="store_true", help="Run in command-line interface mode")
     parser.add_argument("--model-path", help="Path to Vosk speech recognition model")
     parser.add_argument("--command", help="Execute a specific command directly and exit")
     parser.add_argument("text", nargs="*", help="Text to send directly to the LLM")
+    
     args = parser.parse_args()
     
     # Set Vosk model path if provided

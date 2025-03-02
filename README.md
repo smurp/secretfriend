@@ -1,40 +1,17 @@
-## Special Commands
+# Secret Friend
 
-Secret Friend supports special system commands that bypass the LLM. To use these, wrap your command with the PRE_COMMAND and POST_COMMAND phrases:
-
-```
-[PRE_COMMAND] [command] [POST_COMMAND]
-```
-
-For example, with default settings:
-```
-hocus pocus list models abracadabra
-```
-
-Or with custom settings from .env.example:
-```
-oh great genie list models let it be done
-```
-
-Available special commands:
-- `list models` - Shows available Ollama models
-- `exit` - Exits the application
-
-You can add more special commands by modifying the `process_command` function in the script.# Secret Friend
-
-A simple interface to interact with local LLMs through Ollama, with voice activation and text-to-speech feedback.
+A versatile interface to interact with local LLMs through Ollama, with voice activation and text-to-speech feedback.
 
 ## Overview
 
-Secret Friend is a Python script that allows you to have a voice conversation with LLMs running on your local machine via [Ollama](https://ollama.ai/). You can either type your questions/prompts or use voice commands, and the LLM's responses are spoken aloud using macOS's built-in text-to-speech capability.
+Secret Friend is a Python script that allows you to have a voice conversation with LLMs running on your local machine via [Ollama](https://ollama.ai/). You can interact with it using voice commands, command-line arguments, or text input, and the LLM's responses are spoken aloud using macOS's built-in text-to-speech capability.
 
 ## Requirements
 
 - macOS (for the built-in `say` command)
 - Python 3.x
 - [Ollama](https://ollama.ai/) installed and running locally with at least one model
-- `requests` Python package
-- For voice activation: `vosk` and `PyAudio` Python packages 
+- For voice activation: `vosk`, `sounddevice`, and `numpy` Python packages
 - A Vosk speech recognition model (downloadable from their website)
 
 ## Setup
@@ -73,9 +50,6 @@ Secret Friend is a Python script that allows you to have a voice conversation wi
    
    # If not running, start Ollama in a separate terminal
    ollama serve
-   
-   # You should be able to visit http://localhost:11434 in your browser
-   # and see "Ollama is running" if the service is active
    ```
 
 6. Pull at least one model if you haven't already:
@@ -91,23 +65,20 @@ Secret Friend is a Python script that allows you to have a voice conversation wi
 
 ## Usage
 
+Secret Friend offers multiple ways to interact:
+
 ### Voice Activation Mode (Default)
 
 1. Run the script:
    ```bash
    ./secretfriend.py
    ```
-   
-   Or specify a custom model path:
-   ```bash
-   ./secretfriend.py --model-path /path/to/your/vosk-model
-   ```
 
-2. Say "howdy partner" to activate the assistant (or your custom wake phrase).
+2. Say "listen up" to activate the assistant (or your custom wake phrase).
 
 3. Secret Friend will respond with "yes" and listen for your command.
 
-4. Speak your question or prompt, then say "over and out" when you're done.
+4. Speak your question or prompt, then say "go for it" when you're done.
    (Alternatively, a 5-second pause will also end your command)
 
 5. The script will send your prompt to the local LLM and speak the response.
@@ -127,16 +98,70 @@ Secret Friend is a Python script that allows you to have a voice conversation wi
 
 4. Type 'exit' to quit the program.
 
+### Direct Command Execution
+
+Run a command directly:
+```bash
+./secretfriend.py --command "list models"
+```
+
+### Direct Query
+
+Send text directly to the LLM:
+```bash
+./secretfriend.py tell me a joke
+```
+
+### CLI Mode with Initial Query
+
+Start CLI mode with an initial query:
+```bash
+./secretfriend.py --cli tell me a joke
+```
+
+### Help
+
+Display help information:
+```bash
+./secretfriend.py -h
+# or
+./secretfriend.py --help
+```
+
+## Special Commands
+
+Secret Friend supports special system commands that bypass the LLM. To use these, wrap your command with the PRE_COMMAND and POST_COMMAND phrases:
+
+```
+[PRE_COMMAND] [command] [POST_COMMAND]
+```
+
+For example, with default settings:
+```
+hocus pocus list models abracadabra
+```
+
+Or with custom settings from .env.example:
+```
+oh great genie list models let it be done
+```
+
+Available special commands:
+- `list models` - Shows available Ollama models
+- `exit` - Exits the application
+
+You can add more special commands by modifying the `process_command` function in the script.
+
 ## Features
 
 - Uses locally running LLMs via Ollama
-- Fully offline voice activation with configurable wake phrase (default: "howdy partner")
+- Fully offline voice activation with configurable wake phrase (default: "listen up")
 - Offline speech recognition for hands-free operation using Vosk
 - Text-to-speech output using macOS's built-in `say` command
 - Special system commands using the pre/post command pattern
+- Multiple command-line interaction options
 - Automatically detects available models
 - Cleans LLM responses for better speech output
-- Simple command-line interface option
 
 ## Configuration
 
@@ -144,8 +169,8 @@ You can configure Secret Friend using environment variables or a `.env` file:
 
 - `MODEL`: Specify which Ollama model to use (default: gemma2:latest)
 - `VOSK_MODEL_PATH`: Path to your Vosk speech recognition model (default: vosk-model-small-en-us-0.15)
-- `HI_PHRASE`: The phrase to activate the assistant (default: "howdy partner")
-- `GO_PHRASE`: The phrase to end your command (default: "over and out")
+- `HI_PHRASE`: The phrase to activate the assistant (default: "listen up")
+- `GO_PHRASE`: The phrase to end your command (default: "go for it")
 - `PRE_COMMAND`: The phrase that precedes special commands (default: "hocus pocus")
 - `POST_COMMAND`: The phrase that follows special commands (default: "abracadabra")
 - `COMMAND_TIMEOUT`: Maximum time in seconds to wait for a command (default: 30)
@@ -181,7 +206,7 @@ If you're having trouble with voice recognition:
 
 1. Make sure you have installed the required packages and downloaded a Vosk model:
    ```bash
-   pip install vosk pyaudio
+   pip install vosk sounddevice numpy
    wget https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip
    unzip vosk-model-small-en-us-0.15.zip
    ```
@@ -265,4 +290,5 @@ MIT License
 ## Acknowledgments
 
 - [Ollama](https://ollama.ai/) for making local LLMs easy to use
-- [SpeechRecognition](https://pypi.org/project/SpeechRecognition/) for the speech recognition capabilities
+- [Vosk](https://alphacephei.com/vosk/) for the offline speech recognition capabilities
+- [sounddevice](https://python-sounddevice.readthedocs.io/) for audio processing
